@@ -1,6 +1,6 @@
 import logging
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Response
 
 from app.api.routes import router
 from app.core.settings import get_settings
@@ -25,6 +25,20 @@ def create_app() -> FastAPI:
     @app.get("/health")
     async def health() -> dict:
         return {"status": "ok"}
+
+    @app.get("/")
+    async def root() -> dict:
+        return {
+            "name": "Beach People Counter API",
+            "status": "ok",
+            "health": "/health",
+            "docs": "/docs",
+            "api": "/api/v1",
+        }
+
+    @app.get("/favicon.ico", include_in_schema=False)
+    async def favicon() -> Response:
+        return Response(status_code=204)
 
     app.include_router(router)
     return app

@@ -95,12 +95,9 @@ class LineCrossCounter:
                 self._last_centroid[track_id] = current_point
                 continue
 
-            previous_centroid = self._last_centroid.get(track_id)
-            if previous_centroid is not None and current_point.x != previous_centroid.x:
-                delta = 1 if current_point.x > previous_centroid.x else -1
-            else:
-                # Fallback when horizontal motion cannot disambiguate direction.
-                delta = 1 if previous_sign > current_sign else -1
+            # Direction is defined by side change across directed line A->B.
+            # This works for vertical, horizontal and diagonal lines.
+            delta = 1 if previous_sign > current_sign else -1
 
             direction = "up" if delta > 0 else "down"
             if delta > 0:

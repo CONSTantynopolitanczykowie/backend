@@ -1,8 +1,10 @@
 from dataclasses import dataclass
+from typing import TYPE_CHECKING
 
 import numpy as np
 
-from app.services.detector import Detection
+if TYPE_CHECKING:
+    from app.services.detector import Detection
 
 
 @dataclass
@@ -32,7 +34,7 @@ class CentroidTracker:
         x1, y1, x2, y2 = bbox
         return ((x1 + x2) / 2.0, (y1 + y2) / 2.0)
 
-    def _create_track(self, detection: Detection) -> None:
+    def _create_track(self, detection: "Detection") -> None:
         track_id = self._next_track_id
         self._next_track_id += 1
         centroid = self._bbox_centroid(detection.bbox)
@@ -40,7 +42,7 @@ class CentroidTracker:
         self._bboxes[track_id] = detection.bbox
         self._missed[track_id] = 0
 
-    def update(self, detections: list[Detection]) -> list[Track]:
+    def update(self, detections: list["Detection"]) -> list[Track]:
         if not detections:
             to_remove: list[int] = []
             for track_id in list(self._missed.keys()):
