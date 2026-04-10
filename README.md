@@ -7,13 +7,14 @@ The pipeline does the following:
 1. Reads a local `.mp4` file.
 2. Detects people per frame.
 3. Tracks people across frames.
-4. Counts crossings when a track crosses the configured line.
+4. Counts entries/exits by track position relative to frame center.
 
 Counting semantics:
 
-- Cross to the right side of the screen: `+1` (`signed_total` increments).
-- Cross to the left side of the screen: `-1` (`signed_total` decrements).
-- Backward compatible counters `up` and `down` are also still emitted.
+- Left side of frame: treated as `entering` (`up += 1`, `signed_total += 1`).
+- Right side of frame: treated as `exiting` (`down += 1`, `signed_total -= 1`).
+- Middle dead zone: ignored (no counting).
+- Counters remain backward-compatible: `up`, `down`, `signed_total`.
 
 ## v1 Scope
 

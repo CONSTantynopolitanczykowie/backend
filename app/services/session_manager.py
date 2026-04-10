@@ -329,7 +329,7 @@ class SessionManager:
                 if crossing_events:
                     for event in crossing_events:
                         logger.info(
-                            "Crossing track_id=%d direction=%s delta=%d frame=%d counters(up=%d,down=%d,signed_total=%d)",
+                            "Zone event track_id=%d direction=%s delta=%d frame=%d counters(up=%d,down=%d,signed_total=%d)",
                             event.track_id,
                             event.direction,
                             event.delta,
