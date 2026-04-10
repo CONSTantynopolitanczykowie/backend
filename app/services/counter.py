@@ -16,9 +16,9 @@ class LineCrossCounter:
         self._min_crossing_gap_frames = min_crossing_gap_frames
 
         self._state = CounterState()
-        self._track_side: dict[int, int] = {}
-        self._last_centroid: dict[int, Point] = {}
-        self._last_crossing_frame: dict[int, int] = {}
+        self._track_zone: dict[int, int] = {}
+        self._last_counted_zone: dict[int, int] = {}
+        self._last_event_frame: dict[int, int] = {}
 
     @property
     def state(self) -> CounterState:
@@ -32,30 +32,24 @@ class LineCrossCounter:
         if line is not None:
             self._line = line
         self._state = CounterState()
-        self._track_side.clear()
-        self._last_centroid.clear()
-        self._last_crossing_frame.clear()
+        self._track_zone.clear()
+        self._last_counted_zone.clear()
+        self._last_event_frame.clear()
 
     def update_line(self, line: LineConfig) -> None:
         self._line = line
-        self._track_side.clear()
-        self._last_centroid.clear()
-        self._last_crossing_frame.clear()
+        self._track_zone.clear()
+        self._last_counted_zone.clear()
+        self._last_event_frame.clear()
 
-    def _signed_distance_proxy(self, p: Point) -> float:
-        ax = self._line.start.x
-        ay = self._line.start.y
-        bx = self._line.end.x
-        by = self._line.end.y
+    def _zone_for_point(self, p: Point) -> int:
+        center_x = (self._line.start.x + self._line.end.x) / 2.0
+        delta_x = p.x - center_x
 
-        # Cross product sign defines side of point relative to directed line A->B.
-        return float((bx - ax) * (p.y - ay) - (by - ay) * (p.x - ax))
-
-    def _sign(self, value: float) -> int:
-        if value > self._dead_zone_px:
-            return 1
-        if value < -self._dead_zone_px:
+        if delta_x < -self._dead_zone_px:
             return -1
+        if delta_x > self._dead_zone_px:
+            return 1
         return 0
 
     def update(self, tracks: Iterable[Track], frame_index: int) -> list[CrossingEvent]:
@@ -67,40 +61,25 @@ class LineCrossCounter:
             active_track_ids.add(track_id)
 
             current_point = Point(x=int(track.centroid[0]), y=int(track.centroid[1]))
-            current_sign = self._sign(self._signed_distance_proxy(current_point))
+            current_zone = self._zone_for_point(current_point)
 
-            previous_sign = self._track_side.get(track_id)
-            if previous_sign is None:
-                self._track_side[track_id] = current_sign
-                self._last_centroid[track_id] = current_point
+            self._track_zone[track_id] = current_zone
+
+            # Ignore detections in the middle dead zone.
+            if current_zone == 0:
                 continue
 
-            if current_sign == 0:
-                self._last_centroid[track_id] = current_point
+            if self._last_counted_zone.get(track_id) == current_zone:
                 continue
 
-            if previous_sign == 0:
-                self._track_side[track_id] = current_sign
-                self._last_centroid[track_id] = current_point
+            last_event = self._last_event_frame.get(track_id, -10_000_000)
+            if frame_index - last_event < self._min_crossing_gap_frames:
                 continue
 
-            if previous_sign == current_sign:
-                self._track_side[track_id] = current_sign
-                self._last_centroid[track_id] = current_point
-                continue
-
-            last_crossing = self._last_crossing_frame.get(track_id, -10_000_000)
-            if frame_index - last_crossing < self._min_crossing_gap_frames:
-                self._track_side[track_id] = current_sign
-                self._last_centroid[track_id] = current_point
-                continue
-
-            previous_centroid = self._last_centroid.get(track_id)
-            if previous_centroid is not None and current_point.x != previous_centroid.x:
-                delta = 1 if current_point.x > previous_centroid.x else -1
-            else:
-                # Fallback when horizontal motion cannot disambiguate direction.
-                delta = 1 if previous_sign > current_sign else -1
+            # New semantics:
+            # - left side of frame  => entering (+1)
+            # - right side of frame => exiting (-1)
+            delta = 1 if current_zone < 0 else -1
 
             direction = "up" if delta > 0 else "down"
             if delta > 0:
@@ -117,14 +96,13 @@ class LineCrossCounter:
                     frame_index=frame_index,
                 )
             )
-            self._last_crossing_frame[track_id] = frame_index
-            self._track_side[track_id] = current_sign
-            self._last_centroid[track_id] = current_point
+            self._last_event_frame[track_id] = frame_index
+            self._last_counted_zone[track_id] = current_zone
 
-        stale_ids = set(self._track_side.keys()) - active_track_ids
+        stale_ids = set(self._track_zone.keys()) - active_track_ids
         for stale_id in stale_ids:
-            self._track_side.pop(stale_id, None)
-            self._last_centroid.pop(stale_id, None)
-            self._last_crossing_frame.pop(stale_id, None)
+            self._track_zone.pop(stale_id, None)
+            self._last_counted_zone.pop(stale_id, None)
+            self._last_event_frame.pop(stale_id, None)
 
         return events
